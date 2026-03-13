@@ -1,6 +1,6 @@
 [project]
 name = "llm-dna"
-version = "0.1.0"
+version = "0.1.1"
 description = "Extract LLM DNA vectors — low-dimensional representations that capture functional behavior and model evolution."
 authors = [{ name = "LLM-DNA Project" }]
 license = { file = "LICENSE" }
@@ -50,17 +50,18 @@ calc-dna = "llm_dna.cli:main"
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-[tool.hatch.build]
+[tool.hatch.build.targets.wheel]
+packages = ["src/llm_dna"]
+
+[tool.hatch.build.targets.sdist]
 include = [
+    "src/llm_dna/",
     "scripts/calc_dna.sh",
     "scripts/calc_dna.py",
     "configs/llm_list.txt",
     "README.md",
     "LICENSE",
 ]
-
-[tool.hatch.build.targets.wheel]
-packages = ["src/llm_dna"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
