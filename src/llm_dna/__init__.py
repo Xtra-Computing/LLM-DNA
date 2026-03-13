@@ -9,7 +9,9 @@ __all__ = [
     "calc_dna_batch",
 ]
 
-__version__ = "0.0.1"
+from importlib.metadata import version as _version
+
+__version__ = _version("llm-dna")
 
 
 def __getattr__(name: str):

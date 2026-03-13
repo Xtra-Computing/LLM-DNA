@@ -1,6 +1,6 @@
 [project]
 name = "llm-dna"
-version = "0.1.2"
+version = "0.1.3"
 description = "Extract LLM DNA vectors — low-dimensional representations that capture functional behavior and model evolution."
 authors = [{ name = "LLM-DNA Project" }]
 license = { file = "LICENSE" }
