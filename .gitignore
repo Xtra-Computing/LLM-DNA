@@ -21,7 +21,10 @@ htmlcov/
 
 # Data/outputs
 /cache/
-/data/
+/data/*
+!/data/rand/
+/data/rand/*
+!/data/rand/rand_dataset.json
 /models/
 /log/
 /out/
@@ -34,3 +37,5 @@ htmlcov/
 
 /uv.lock
 /.env
+/CLAUDE.md
+/claude.md

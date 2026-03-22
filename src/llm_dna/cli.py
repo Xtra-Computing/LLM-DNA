@@ -97,7 +97,7 @@ def parse_arguments(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
 
     # Dataset and probes
     parser.add_argument("--dataset", type=str, default="rand")
-    parser.add_argument("--probe-set", type=str, default="general")
+    parser.add_argument("--probe-set", type=str, default="rand")
     parser.add_argument("--max-samples", type=int, default=100)
     parser.add_argument("--data-root", type=str, default="./data")
 

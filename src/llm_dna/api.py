@@ -28,7 +28,7 @@ class DNAExtractionConfig:
     model_path: Optional[str] = None
     model_type: str = "auto"
     dataset: str = "rand"
-    probe_set: str = "general"
+    probe_set: str = "rand"
     max_samples: int = 100
     data_root: str = "./data"
     extractor_type: str = "embedding"
