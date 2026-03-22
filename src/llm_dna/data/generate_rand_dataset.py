@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """
-Generate random word dataset for DNA extraction.
+Generate random sentence dataset for DNA extraction.
 
-Creates a dataset of 600 samples, each containing 100 random English words.
-Uses the wonderwords library to generate random words.
+Creates a dataset of 600 samples, each containing ~100 words of natural
+English sentences built from random vocabulary using a context-free grammar.
+Uses the wonderwords library to supply random nouns, verbs, and adjectives.
 """
 
 import argparse
 import json
 import logging
+import random
 from pathlib import Path
 from typing import List
 from wonderwords import RandomWord
@@ -19,38 +21,148 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Context-free grammar rules. Each non-terminal maps to a list of possible
+# expansions. Terminals starting with '_' are resolved by wonderwords.
+_GRAMMAR = {
+    "S": [
+        "{NP} {VP}.",
+        "{NP} {VP} and {NP} {VP}.",
+        "When {NP} {VP}, {NP} {VP}.",
+        "Although {NP} {VP}, {NP} {VP}.",
+        "After {NP} {VP}, {NP} {VP}.",
+        "If {NP} {VP}, {NP} will {_VERB_BASE}.",
+        "{NP} {VP} because {NP} {VP}.",
+        "{NP} {VP} while {NP} {VP}.",
+        "{NP} {VP}, but {NP} {VP}.",
+        "{NP} {VP} before {NP} {VP}.",
+    ],
+    "NP": [
+        "the {_NOUN}",
+        "the {_ADJ} {_NOUN}",
+        "a {_NOUN}",
+        "a {_ADJ} {_NOUN}",
+        "the {_ADJ} {_ADJ2} {_NOUN}",
+    ],
+    "VP": [
+        "{_VERB} {NP}",
+        "{_VERB} {PP}",
+        "{_VERB} {NP} {PP}",
+        "{_VERB} {ADV}",
+        "{_VERB}",
+    ],
+    "PP": [
+        "near {NP}",
+        "with {NP}",
+        "beside {NP}",
+        "across {NP}",
+        "around {NP}",
+        "behind {NP}",
+        "toward {NP}",
+        "inside {NP}",
+        "above {NP}",
+        "under {NP}",
+    ],
+    "ADV": [
+        "quickly",
+        "slowly",
+        "carefully",
+        "quietly",
+        "suddenly",
+        "gently",
+        "eagerly",
+        "steadily",
+        "calmly",
+        "gracefully",
+    ],
+}
+
+# Maximum recursion depth to prevent infinite expansion
+_MAX_DEPTH = 6
+
+
+def _conjugate(verb: str) -> str:
+    """Simple third-person present tense conjugation."""
+    if verb.endswith(("s", "sh", "ch", "x", "z", "o")):
+        return verb + "es"
+    if verb.endswith("y") and verb[-2:] not in ("ay", "ey", "oy", "uy"):
+        return verb[:-1] + "ies"
+    return verb + "s"
+
+
+def _expand(symbol: str, rw: RandomWord, depth: int = 0) -> str:
+    """Recursively expand a grammar symbol into a string."""
+    if depth > _MAX_DEPTH:
+        # At max depth, return a simple terminal to stop recursion
+        return rw.word(include_parts_of_speech=["nouns"])
+
+    # Wonderwords terminals
+    if symbol == "_NOUN":
+        return rw.word(include_parts_of_speech=["nouns"])
+    if symbol == "_VERB":
+        return _conjugate(rw.word(include_parts_of_speech=["verbs"]))
+    if symbol == "_VERB_BASE":
+        return rw.word(include_parts_of_speech=["verbs"])
+    if symbol in ("_ADJ", "_ADJ2"):
+        return rw.word(include_parts_of_speech=["adjectives"])
+
+    # Non-terminal: pick a random production and expand each token
+    if symbol in _GRAMMAR:
+        production = random.choice(_GRAMMAR[symbol])
+        # Find all {TOKEN} references and expand them
+        result = production
+        while "{" in result:
+            start = result.index("{")
+            end = result.index("}", start)
+            token = result[start + 1 : end]
+            expanded = _expand(token, rw, depth + 1)
+            result = result[:start] + expanded + result[end + 1 :]
+        return result
+
+    # Unknown symbol, return as literal
+    return symbol
+
+
+def _generate_sentence(rw: RandomWord) -> str:
+    """Generate a single random sentence from the CFG."""
+    sent = _expand("S", rw)
+    return sent[0].upper() + sent[1:]
+
 
 def generate_random_word_samples(
     num_samples: int = 600,
     words_per_sample: int = 100,
-    seed: int = 42
+    seed: int = 42,
 ) -> List[str]:
     """
-    Generate random word samples using wonderwords.
-    
+    Generate samples of natural English sentences with random vocabulary.
+
     Args:
         num_samples: Number of samples to generate
-        words_per_sample: Number of words per sample
+        words_per_sample: Target number of words per sample
         seed: Random seed for reproducibility
-        
+
     Returns:
-        List of strings, each containing words_per_sample random words
+        List of strings, each containing ~words_per_sample words as sentences
     """
-    r = RandomWord()
+    random.seed(seed)
+    rw = RandomWord()
     samples = []
-    
-    logger.info(f"Generating {num_samples} samples with {words_per_sample} words each...")
-    
+
+    logger.info(f"Generating {num_samples} samples with ~{words_per_sample} words each...")
+
     for i in range(num_samples):
-        # Generate random words by calling r.word() multiple times
-        words = [r.word() for _ in range(words_per_sample)]
-        # Join words with spaces to create a "sentence"
-        sample = " ".join(words)
+        sentences = []
+        word_count = 0
+        while word_count < words_per_sample:
+            sent = _generate_sentence(rw)
+            sentences.append(sent)
+            word_count += len(sent.split())
+        sample = " ".join(sentences)
         samples.append(sample)
-        
+
         if (i + 1) % 100 == 0:
             logger.info(f"Generated {i + 1}/{num_samples} samples")
-    
+
     logger.info(f"Successfully generated {len(samples)} samples")
     return samples
 
