@@ -82,7 +82,9 @@ class ModelLoader:
             "cohere/command",
             "perplexity/",
         ]
-        if any(model_lower.startswith(prefix) for prefix in openrouter_prefixes):
+        huggingface_prefixes_openai = "openai/gpt-oss"
+
+        if any(model_lower.startswith(prefix) for prefix in openrouter_prefixes) and not model_lower.startswith(huggingface_prefixes_openai):
             return "openrouter"
 
         # Check for Google Gemini model names
