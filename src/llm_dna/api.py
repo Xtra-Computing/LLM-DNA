@@ -49,7 +49,7 @@ class DNAExtractionConfig:
     gpu_id: Optional[int] = None
     log_level: str = "INFO"
     random_seed: int = 42
-    skip_chat_template: bool = True
+    use_chat_template: bool = False
 
 
 @dataclass(slots=True)
@@ -413,7 +413,7 @@ def _generate_responses_for_model(
                 temperature=0.0,
                 do_sample=False,
                 top_p=1.0,
-                skip_chat_template=config.skip_chat_template,
+                use_chat_template=config.use_chat_template,
                 on_response_callback=_save_response_incrementally if incremental_save_path else None,
             )
         else:
@@ -425,7 +425,7 @@ def _generate_responses_for_model(
                     temperature=0.0,
                     do_sample=False,
                     top_p=1.0,
-                    skip_chat_template=config.skip_chat_template,
+                    use_chat_template=config.use_chat_template,
                 )
                 responses.append(response)
                 if incremental_save_path:
@@ -628,7 +628,7 @@ def calc_dna(config: DNAExtractionConfig) -> DNAExtractionResult:
             device=resolved_device,
             log_level=config.log_level,
             random_seed=config.random_seed,
-            skip_chat_template=config.skip_chat_template,
+            use_chat_template=config.use_chat_template,
         )
 
         signature = core.extract_dna_signature(

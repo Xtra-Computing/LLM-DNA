@@ -632,7 +632,7 @@ class HuggingFaceWrapper(LLMWrapper):
         temperature: float = 0.7,
         do_sample: bool = True,
         top_p: float = 0.9,
-        skip_chat_template: bool = False,
+        use_chat_template: bool = False,
         **kwargs
     ) -> str:
         """Generate text from input, respecting the model's context length."""
@@ -648,10 +648,10 @@ class HuggingFaceWrapper(LLMWrapper):
             safe_input_length, max_new_tokens = self._get_safe_generation_params(max_length)
             
             # Prefer chat-template tokenization when available to ensure special tokens are handled
-            # Skip chat template if skip_chat_template=True (treat chat models as completion models)
+            # Apply chat template only when use_chat_template=True
             inputs = None
             prefers_chat_template = False
-            if not skip_chat_template:
+            if use_chat_template:
                 if self.is_chat_model is True:
                     prefers_chat_template = True
                 # Heuristic fallback if metadata wasn't provided
@@ -757,7 +757,7 @@ class HuggingFaceWrapper(LLMWrapper):
             # Decode only the newly generated tokens
             new_tokens = outputs[0][input_length:]
             # When skipping chat template, preserve special tokens (match try_chat_model_without_template.py behavior)
-            skip_special_tokens = not skip_chat_template
+            skip_special_tokens = use_chat_template
             generated_text = self.tokenizer.decode(new_tokens, skip_special_tokens=skip_special_tokens)
             
             return generated_text.strip()
@@ -1035,9 +1035,9 @@ class VLLMWrapper(LLMWrapper):
         except Exception as e:
             raise RuntimeError(f"Failed to initialize vLLM engine: {e}")
 
-    def _format_prompt(self, user_text: str, skip_chat_template: bool = False) -> str:
-        # Prefer chat template for chat models, unless skip_chat_template=True
-        if skip_chat_template:
+    def _format_prompt(self, user_text: str, use_chat_template: bool = False) -> str:
+        # Apply chat template for chat models only when use_chat_template=True
+        if not use_chat_template:
             return user_text
         try:
             prefers_chat = False
@@ -1062,12 +1062,12 @@ class VLLMWrapper(LLMWrapper):
         temperature: float = 0.7,
         do_sample: bool = True,
         top_p: float = 0.9,
-        skip_chat_template: bool = False,
+        use_chat_template: bool = False,
         **kwargs
     ) -> str:
         try:
             from vllm import SamplingParams
-            prompt = self._format_prompt(input_text, skip_chat_template=skip_chat_template)
+            prompt = self._format_prompt(input_text, use_chat_template=use_chat_template)
             # Map our "max_length" contract to vLLM's max_tokens for new tokens
             # Our safe length logic is in HF wrapper; here we approximate with max_tokens
             params = SamplingParams(
@@ -1091,7 +1091,7 @@ class VLLMWrapper(LLMWrapper):
         temperature: float = 0.7,
         do_sample: bool = True,
         top_p: float = 0.9,
-        skip_chat_template: bool = False,
+        use_chat_template: bool = False,
         **kwargs
     ) -> List[str]:
         """Generate for a list of prompts in one vLLM call.
@@ -1103,7 +1103,7 @@ class VLLMWrapper(LLMWrapper):
             return []
         try:
             from vllm import SamplingParams
-            formatted = [self._format_prompt(p, skip_chat_template=skip_chat_template) for p in prompts]
+            formatted = [self._format_prompt(p, use_chat_template=use_chat_template) for p in prompts]
             params = SamplingParams(
                 max_tokens=max_length,
                 temperature=temperature,
@@ -1122,7 +1122,7 @@ class VLLMWrapper(LLMWrapper):
             self.logger.error(f"vLLM batch generation failed: {e}")
             # Fall back to sequential to salvage outputs
             return [
-                self.generate(p, max_length=max_length, temperature=temperature, do_sample=do_sample, top_p=top_p, skip_chat_template=skip_chat_template, **kwargs)
+                self.generate(p, max_length=max_length, temperature=temperature, do_sample=do_sample, top_p=top_p, use_chat_template=use_chat_template, **kwargs)
                 for p in prompts
             ]
 
@@ -1383,7 +1383,7 @@ class OpenAIWrapper(LLMWrapper):
         completion_window = str(kwargs.pop("batch_completion_window", "24h"))
 
         # Wrapper-only kwargs should not be forwarded to the provider payload.
-        kwargs.pop("skip_chat_template", None)
+        kwargs.pop("use_chat_template", None)
 
         if not prefer_batch_api:
             return super().generate_batch(
@@ -1979,7 +1979,7 @@ class GeminiWrapper(LLMWrapper):
         top_p: float = 0.9,
         **kwargs
     ) -> str:
-        kwargs.pop("skip_chat_template", None)
+        kwargs.pop("use_chat_template", None)
         payload = {
             "contents": [{"role": "user", "parts": [{"text": input_text}]}],
             "generationConfig": self._build_gemini_generation_config(
@@ -2022,7 +2022,7 @@ class GeminiWrapper(LLMWrapper):
         timeout = kwargs.pop("batch_timeout_seconds", self.batch_timeout_seconds)
 
         # Wrapper-only kwarg
-        kwargs.pop("skip_chat_template", None)
+        kwargs.pop("use_chat_template", None)
 
         if not prefer_batch_api:
             return super().generate_batch(

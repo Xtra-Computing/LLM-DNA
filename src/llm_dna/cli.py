@@ -169,7 +169,12 @@ def parse_arguments(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
         default="INFO",
     )
     parser.add_argument("--random-seed", type=int, default=42)
-    parser.add_argument("--skip-chat-template", action="store_true")
+    parser.add_argument(
+        "--use-chat-template",
+        action="store_true",
+        default=False,
+        help="Apply chat template for HuggingFace models (default: disabled).",
+    )
 
     return parser.parse_args(list(argv) if argv is not None else None)
 
@@ -221,7 +226,7 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
             gpu_id=None,
             log_level=args.log_level,
             random_seed=args.random_seed,
-            skip_chat_template=args.skip_chat_template,
+            use_chat_template=args.use_chat_template,
         )
         try:
             results = calc_dna_parallel(
@@ -276,7 +281,7 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
                 gpu_id=gpu_id,
                 log_level=args.log_level,
                 random_seed=args.random_seed,
-                skip_chat_template=args.skip_chat_template,
+                use_chat_template=args.use_chat_template,
             )
 
             result = calc_dna(config)

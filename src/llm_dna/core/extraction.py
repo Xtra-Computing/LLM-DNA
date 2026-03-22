@@ -206,10 +206,10 @@ def parse_arguments(argv: Optional[List[str]] = None) -> argparse.Namespace:
         help="Random seed for reproducibility"
     )
     parser.add_argument(
-        "--skip-chat-template",
+        "--use-chat-template",
         action="store_true",
         default=False,
-        help="Skip applying chat templates for chat models (treat them as completion models). By default, chat templates are applied for embedding extractor."
+        help="Apply chat templates for chat models. By default, chat templates are not applied."
     )
     
     return parser.parse_args(argv)
@@ -384,7 +384,7 @@ def extract_dna_signature(
     """Extract DNA signature from model."""
 
     # Apply chat template when available for chat-oriented tokenizers.
-    if extractor_type == "embedding" and not args.skip_chat_template:
+    if extractor_type == "embedding" and args.use_chat_template:
         is_chat_model = model_metadata.get("chat_model", {}).get("is_chat_model", False)
         should_try_template = is_chat_model or "chat_model" not in model_metadata
         try:

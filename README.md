@@ -91,7 +91,7 @@ calc-dna \
 
 - **Metadata auto-fetched**: Model metadata is automatically retrieved from HuggingFace Hub and cached.
 - **Auth token**: Pass via `token=...` or set `HF_TOKEN` environment variable.
-- **Chat templates**: Applied automatically when supported by the tokenizer.
+- **Chat templates**: Disabled by default. Enable with `--use-chat-template` (CLI) or `use_chat_template=True` (API).
 
 ## Tests
 
