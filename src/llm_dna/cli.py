@@ -8,6 +8,8 @@ import logging
 from pathlib import Path
 from typing import Iterable, List, Optional
 
+from dotenv import load_dotenv
+
 
 def _load_models_from_file(path: Path) -> List[str]:
     """Load model names from a file, one per line."""
@@ -182,6 +184,8 @@ def parse_arguments(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
 def main(argv: Optional[Iterable[str]] = None) -> int:
     """Main CLI entrypoint for DNA extraction."""
     from .api import DNAExtractionConfig, calc_dna, calc_dna_parallel
+
+    load_dotenv(override=False)
 
     args = parse_arguments(argv)
 

@@ -28,6 +28,27 @@ pip install llm-dna
 
 Use `llm-dna` for install/package naming, and `llm_dna` for Python imports.
 
+Optional extras are available for model families that need additional runtime dependencies:
+
+```bash
+# Apple Silicon / MLX-backed models
+pip install "llm-dna[apple]"
+
+# Quantized HuggingFace models (bitsandbytes, GPTQ, compressed-tensors, optimum)
+pip install "llm-dna[quantization]"
+
+# Architecture-specific model families such as Mamba or TIMM-backed models
+pip install "llm-dna[model_families]"
+
+# Everything above
+pip install "llm-dna[full]"
+```
+
+Extra guidance:
+- `apple`: required for MLX and `mlx-community/*` style model families on Apple Silicon.
+- `quantization`: required for many GPTQ, bitsandbytes, and compressed-tensors model families.
+- `model_families`: required for specific architectures whose modeling code depends on packages like `mamba-ssm` or `timm`.
+
 ## Quick Start
 
 ```python

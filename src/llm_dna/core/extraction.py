@@ -630,6 +630,13 @@ def main():
         logging.info(f"DNA signature saved to: {output_path}")
         
         # Save summary
+        # Create safe args dict without sensitive information
+        safe_args = vars(args).copy()
+        # Remove sensitive fields that should not be saved to output files
+        sensitive_fields = ['token', 'OPENROUTER_API_KEY', 'OPENAI_API_KEY']
+        for field in sensitive_fields:
+            safe_args.pop(field, None)
+        
         summary = {
             "model_name": args.model_name,
             "dataset": args.dataset,
@@ -642,7 +649,7 @@ def main():
             "signature_stats": signature.get_statistics(),
             "metadata": signature.metadata.__dict__,
             "output_file": str(output_path),
-            "args": vars(args)
+            "args": safe_args
         }
         
         # Keep summary filename model-only as well

@@ -32,10 +32,35 @@ dependencies = [
     "wonderwords>=2.2.0",
     "openai>=1.0.0",
     "tiktoken>=0.7.0",
+    "python-dotenv>=1.0.0",
 ]
 
 [project.optional-dependencies]
 model_scraping = ["requests>=2.31.0"]
+
+apple = [
+    "mlx>=0.10.0; sys_platform == 'darwin' and platform_machine == 'arm64'",
+    "mlx-lm>=0.10.0; sys_platform == 'darwin' and platform_machine == 'arm64'",
+]
+
+quantization = [
+    "bitsandbytes>=0.46.1",
+    "autoawq>=0.2.0",
+    "auto-gptq>=0.5.0",
+    "optimum>=1.16.0",
+    "compressed-tensors>=0.1.0",
+]
+
+model_families = [
+    "mamba-ssm>=1.0.0; sys_platform == 'linux'",
+    "timm>=0.9.0",
+]
+
+full = [
+    "llm-dna[apple]",
+    "llm-dna[quantization]",
+    "llm-dna[model_families]",
+]
 
 vllm = ["vllm>=0.4.0"]
 
