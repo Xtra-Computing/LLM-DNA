@@ -30,7 +30,7 @@ class DNAExtractionConfig:
     probe_set: str = "rand"
     max_samples: int = 100
     data_root: str = "./data"
-    extractor_type: str = "embedding"  # Only "embedding" is supported since v0.3.0
+    extractor_type: str = "embedding"  # Only "embedding" is supported since v0.2.3
     dna_dim: int = 128
     reduction_method: str = "random_projection"
     embedding_merge: str = "concat"
@@ -553,7 +553,7 @@ def calc_dna(config: DNAExtractionConfig) -> DNAExtractionResult:
     if config.extractor_type != "embedding":
         raise ValueError(
             f"Unsupported extractor_type '{config.extractor_type}' for calc_dna. "
-            "Only 'embedding' is supported. Hidden-state extraction was removed in v0.3.0; "
+            "Only 'embedding' is supported. Hidden-state extraction was removed in v0.2.3; "
             "all models now use the unified text-response embedding pipeline."
         )
 
