@@ -70,6 +70,11 @@ class ModelLoader:
 
         # Check for OpenRouter model names.
         # Keep this conservative to avoid misclassifying common HuggingFace IDs.
+        # NOTE: "openai/gpt-3" and "openai/gpt-4" are intentionally version-pinned
+        # prefixes rather than the broader "openai/gpt-" to avoid matching HuggingFace
+        # models like "openai/gpt-oss", "openai/whisper-*", or "openai/clip-*".
+        # If OpenAI releases models under new major version prefixes (e.g. "openai/gpt-5"),
+        # add them explicitly here.
         openrouter_prefixes = [
             "openrouter/",
             "openrouter:",

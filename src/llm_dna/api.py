@@ -30,7 +30,7 @@ class DNAExtractionConfig:
     probe_set: str = "rand"
     max_samples: int = 100
     data_root: str = "./data"
-    extractor_type: str = "embedding"
+    extractor_type: str = "embedding"  # Only "embedding" is supported since v0.3.0
     dna_dim: int = 128
     reduction_method: str = "random_projection"
     embedding_merge: str = "concat"
@@ -67,6 +67,9 @@ class DNAExtractionResult:
 def _resolve_hf_token(explicit_token: Optional[str]) -> Optional[str]:
     if explicit_token:
         return explicit_token
+
+    from dotenv import load_dotenv
+    load_dotenv(override=False)
 
     env_vars = ("HF_TOKEN", "HUGGING_FACE_HUB_TOKEN", "HUGGINGFACE_TOKEN")
     for env_var in env_vars:
@@ -548,10 +551,16 @@ def calc_dna(config: DNAExtractionConfig) -> DNAExtractionResult:
     vector: np.ndarray
 
     if config.extractor_type != "embedding":
-        raise ValueError(f"Unsupported extractor_type for calc_dna: {config.extractor_type}")
+        raise ValueError(
+            f"Unsupported extractor_type '{config.extractor_type}' for calc_dna. "
+            "Only 'embedding' is supported. Hidden-state extraction was removed in v0.3.0; "
+            "all models now use the unified text-response embedding pipeline."
+        )
 
     response_path = _response_cache_path(config, config.model_name)
     cached_responses = _load_cached_responses(response_path, expected_count=len(probe_texts))
+    model_meta: Dict[str, Any] = _default_model_metadata(config.model_name)
+    responses: list[str]
 
     if cached_responses is not None:
         logging.info(
@@ -559,7 +568,6 @@ def calc_dna(config: DNAExtractionConfig) -> DNAExtractionResult:
             config.model_name,
             response_path,
         )
-        model_meta = _default_model_metadata(config.model_name)
         responses = cached_responses
     else:
         if _is_api_model_type(config.model_type):
