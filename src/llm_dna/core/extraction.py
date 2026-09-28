@@ -210,15 +210,14 @@ def extract_dna_signature(
 ) -> DNASignature:
     """Compatibility wrapper over the public text-response extraction pipeline."""
     from dataclasses import fields
-    from ..api import DNAExtractionConfig, _generate_responses_for_model, _extract_signature_from_text_responses, _resolve_device
+    from ..api import DNAExtractionConfig, _generate_responses_for_model, _extract_signature_from_text_responses, _resolve_device, _make_text_extractor
 
     options = {field.name: getattr(args, field.name) for field in fields(DNAExtractionConfig)
                if hasattr(args, field.name)}
     options.update(model_name=model_name, model_path=model_path, model_type=model_type,
                    extractor_type=extractor_type)
     config = DNAExtractionConfig(**options)
-    if extractor_type != "embedding":
-        raise ValueError("Only the text-response embedding pipeline is supported.")
+    _make_text_extractor(config)  # Reject obsolete selectors before model loading.
     device = _resolve_device(config)
     responses = _generate_responses_for_model(
         model_name, config, model_metadata, probe_texts, device, config.token,

@@ -65,8 +65,11 @@ restoring the original experiment's text-response pipeline:
 There is no per-model fitted scaler, per-probe final projection, or truncation
 of the concatenated vector. The resulting DNA is not normalized. PCA/SVD fitting
 per model is rejected because it does not give models a shared coordinate system.
-The old hidden-state `EmbeddingDNAExtractor` remains available only for legacy
-explicit imports; public entrypoints do not call it.
+`TextDNAExtractor` is the sole supported extractor. Both API and CLI default to
+`extractor_type="text"` / `--extractor-type text`. The old hidden-state
+`EmbeddingDNAExtractor` and its unused base classes have been removed, including
+their package exports. Replace explicit `extractor_type="embedding"` settings
+with `"text"`, or omit the option to use the default.
 
 `normalize_embeddings` controls the extra L2 normalization **after the 64-coordinate
 slice**, not any normalization inside the encoder or the projection matrix's

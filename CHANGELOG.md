@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.0.1 — 2026-09-29
+
+Complete the public-interface migration to text-response DNA extraction:
+
+- Remove `EmbeddingDNAExtractor` and the unused `DNAExtractor`,
+  `InferenceExtractor`, and `ParamExtractor` base classes and package exports.
+- Default the API and CLI extractor selector to `text`, the sole supported value.
+  Replace explicit `extractor_type="embedding"` / `--extractor-type embedding`
+  settings with `text`, or omit the selector.
+- Reject obsolete extractor selectors before probe loading or model generation
+  in single-model, batch, and compatibility entrypoints.
+
+The text extraction algorithm, normalization default, and previously reproduced
+DNA vectors are unchanged.
+
 ## 1.0.0 — 2026-09-29
 
 Restore the original text-response DNA extraction pipeline across the public API,

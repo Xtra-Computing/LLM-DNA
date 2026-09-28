@@ -107,8 +107,9 @@ def parse_arguments(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     parser.add_argument(
         "--extractor-type",
         type=str,
-        default="embedding",
-        choices=["embedding"],
+        default="text",
+        choices=["text"],
+        help="Extract DNA from generated text responses using TextDNAExtractor.",
     )
     parser.add_argument("--dna-dim", type=int, default=128)
     parser.add_argument(

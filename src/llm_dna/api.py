@@ -30,7 +30,7 @@ class DNAExtractionConfig:
     probe_set: str = "rand"
     max_samples: int = 100
     data_root: str = "./data"
-    extractor_type: str = "embedding"  # Only "embedding" is supported since v0.2.3
+    extractor_type: str = "text"
     dna_dim: int = 128
     reduction_method: str = "random_projection"
     embedding_merge: str = "concat"
@@ -508,6 +508,12 @@ def _generate_responses_for_model(
 
 
 def _make_text_extractor(config, *, sentence_encoder=None, device="cpu"):
+    if config.extractor_type != "text":
+        raise ValueError(
+            f"Unsupported extractor_type {config.extractor_type!r}. "
+            "Only 'text' is supported; use extractor_type='text' or omit it. "
+            "The legacy hidden-state extractor and 'embedding' selector were removed."
+        )
     from .dna.TextDNAExtractor import TextDNAExtractor
 
     return TextDNAExtractor(
@@ -580,13 +586,6 @@ def calc_dna(config: DNAExtractionConfig) -> DNAExtractionResult:
 
     signature: "DNASignature"
     vector: np.ndarray
-
-    if config.extractor_type != "embedding":
-        raise ValueError(
-            f"Unsupported extractor_type '{config.extractor_type}' for calc_dna. "
-            "Only 'embedding' is supported. Hidden-state extraction was removed in v0.2.3; "
-            "all models now use the unified text-response embedding pipeline."
-        )
 
     response_path = _response_cache_path(config, config.model_name)
     cached_responses = _load_cached_responses(

@@ -102,6 +102,40 @@ def test_invalid_per_model_reducer_is_rejected_before_generation(offline_pipelin
     assert generated == []
 
 
+@pytest.mark.parametrize("run", [api.calc_dna, api.calc_dna_parallel])
+def test_legacy_extractor_is_rejected_before_probe_loading(offline_pipeline, monkeypatch, run):
+    config, _, generated, _ = offline_pipeline
+
+    def unexpected_probes(**_kwargs):
+        pytest.fail("An unsupported extractor must not load probes or generate responses")
+
+    monkeypatch.setattr("llm_dna.core.extraction.get_probe_texts", unexpected_probes)
+    with pytest.raises(ValueError, match="Only 'text' is supported"):
+        run(replace(config, extractor_type="embedding"))
+    assert generated == []
+
+
+def test_saved_summary_identifies_text_extraction(offline_pipeline):
+    config, _, _, _ = offline_pipeline
+    result = api.calc_dna(replace(config, save=True))
+    summary = json.loads(result.summary_path.read_text())
+    assert summary["extractor_type"] == "text"
+    assert summary["config"]["extractor_type"] == "text"
+
+
+def test_only_text_extractor_is_exported():
+    import importlib.util
+    import llm_dna
+    import llm_dna.dna as dna
+
+    assert dna.TextDNAExtractor is llm_dna.TextDNAExtractor
+    for name in ("DNAExtractor", "InferenceExtractor", "ParamExtractor", "EmbeddingDNAExtractor"):
+        assert name not in dna.__all__
+        assert not hasattr(dna, name)
+    assert importlib.util.find_spec("llm_dna.dna.EmbeddingDNAExtractor") is None
+    assert importlib.util.find_spec("llm_dna.dna.DNAExtractor") is None
+
+
 @pytest.mark.parametrize("cache_variant", ["wrong_count", "wrong_order", "missing_order"])
 def test_stale_response_cache_is_regenerated_for_current_probe_order(offline_pipeline, cache_variant):
     config, prompts, generated, _ = offline_pipeline
