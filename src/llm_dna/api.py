@@ -55,6 +55,8 @@ class DNAExtractionConfig:
     log_level: str = "INFO"
     random_seed: int = 42
     use_chat_template: bool = True
+    # Controls cache reuse; fresh responses still follow the existing save policy.
+    use_response_cache: bool = True
 
 
 @dataclass(slots=True)
@@ -588,9 +590,12 @@ def calc_dna(config: DNAExtractionConfig) -> DNAExtractionResult:
     vector: np.ndarray
 
     response_path = _response_cache_path(config, config.model_name)
-    cached_responses = _load_cached_responses(
-        response_path, expected_count=len(probe_texts), expected_prompts=probe_texts,
-        expected_model=config.model_name, expected_generation_config=_generation_config(config),
+    cached_responses = (
+        _load_cached_responses(
+            response_path, expected_count=len(probe_texts), expected_prompts=probe_texts,
+            expected_model=config.model_name, expected_generation_config=_generation_config(config),
+        )
+        if config.use_response_cache else None
     )
     model_meta: Dict[str, Any] = _default_model_metadata(config.model_name)
     responses: list[str]
@@ -689,6 +694,10 @@ def calc_dna_parallel(
 
     This additive API keeps ``calc_dna`` unchanged. When ``llm_list`` is provided,
     ``config.model_name`` is ignored and a warning is emitted.
+
+    Set ``config.use_response_cache=False`` to regenerate responses while keeping
+    cache writes enabled. The existing ``use_response_cache=False`` argument
+    disables both cache reads and writes, regardless of the config setting.
     """
 
     from .core import extraction as core
@@ -774,7 +783,7 @@ def calc_dna_parallel(
             try:
                 response_path = _response_cache_path(config, model_name)
                 responses: Optional[list[str]] = None
-                if use_response_cache:
+                if use_response_cache and config.use_response_cache:
                     responses = _load_cached_responses(
                         response_path, expected_count=len(probe_texts), expected_prompts=probe_texts,
                         expected_model=model_name, expected_generation_config=_generation_config(config),

@@ -123,6 +123,22 @@ def test_saved_summary_identifies_text_extraction(offline_pipeline):
     assert summary["config"]["extractor_type"] == "text"
 
 
+@pytest.mark.parametrize("run", [api.calc_dna, api.calc_dna_parallel])
+def test_saved_summary_omits_explicit_token(offline_pipeline, run):
+    config, _, _, _ = offline_pipeline
+    config = replace(config, save=True, token="hf_example_secret_for_summary_test")
+
+    result = run(config)
+    if isinstance(result, list):
+        result = result[0]
+
+    summary_text = result.summary_path.read_text(encoding="utf-8")
+    summary = json.loads(summary_text)
+    assert "token" not in summary["config"]
+    assert config.token not in summary_text
+    assert config.token == "hf_example_secret_for_summary_test"
+
+
 def test_only_text_extractor_is_exported():
     import importlib.util
     import llm_dna
@@ -180,6 +196,35 @@ def _write_cached_answers(config, prompts, *, generation_config=None, model_name
         payload["generation_config"] = generation_config
     path.write_text(json.dumps(payload), encoding="utf-8")
     return path
+
+
+@pytest.mark.parametrize("run", [api.calc_dna, api.calc_dna_parallel])
+@pytest.mark.parametrize("cache_variant", ["incomplete", "all_empty"])
+def test_unusable_response_cache_is_regenerated(offline_pipeline, run, cache_variant):
+    config, prompts, generated, _ = offline_pipeline
+    config = replace(config, save=True)
+    path = _write_cached_answers(
+        config, prompts, generation_config=_expected_generation_config(config),
+    )
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["complete"] = cache_variant != "incomplete"
+    if cache_variant == "all_empty":
+        for item, response in zip(payload["items"], ["", " ", "\n\t"]):
+            item["response"] = response
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    result = run(config)
+    if isinstance(result, list):
+        result = result[0]
+
+    assert generated == [config.model_name]
+    provenance = result.signature.metadata.extractor_config["provenance"]
+    assert provenance["response_source"] == "generated"
+    saved_cache = json.loads(path.read_text(encoding="utf-8"))
+    assert saved_cache["complete"] is True
+    assert [item["response"] for item in saved_cache["items"]] == [
+        f"{config.model_name}::{prompt}" for prompt in prompts
+    ]
 
 
 @pytest.mark.parametrize("parallel", [False, True])

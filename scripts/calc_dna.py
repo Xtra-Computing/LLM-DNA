@@ -75,6 +75,11 @@ def main():
     )
     parser.add_argument("--sentence-encoder", default="Qwen/Qwen3-Embedding-8B")
     parser.add_argument("--normalize-embeddings", action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument(
+        "--ignore-response-cache",
+        action="store_true",
+        help="Regenerate responses instead of reusing responses.json; keep the existing save policy.",
+    )
     args = parser.parse_args()
 
     # Set paths relative to project root
@@ -100,6 +105,7 @@ def main():
         output_dir=output_dir,
         save=not args.no_save,
         trust_remote_code=True,
+        use_response_cache=not args.ignore_response_cache,
     )
 
     # Batch mode: process multiple models from file
@@ -144,4 +150,3 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-

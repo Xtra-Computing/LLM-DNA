@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Selectively port response-cache bypass from PR #6 to the current text API and
+  both CLIs, including batch execution. Keep existing cache validation and the
+  parallel API's separate switch for disabling all response-cache I/O.
+- Forward explicit vLLM sampling seeds in single and batch generation, including
+  sequential fallback after a batch failure.
+
 ## 1.0.1 — 2026-09-29
 
 Complete the public-interface migration to text-response DNA extraction:

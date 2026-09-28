@@ -103,6 +103,13 @@ with a different model, probe count/order, or recorded generation settings are r
 Legacy caches without generation settings are explicitly marked as having unknown
 generation provenance.
 
+To regenerate answers even when a valid cache exists, set
+`DNAExtractionConfig(use_response_cache=False, ...)` or pass
+`--ignore-response-cache` to either CLI. This applies to single-model and batch
+runs and keeps the existing save policy. The separate
+`calc_dna_parallel(..., use_response_cache=False)` argument still disables both
+response-cache reads and writes.
+
 ## Quick Start
 
 ```python

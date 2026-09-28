@@ -1074,7 +1074,8 @@ class VLLMWrapper(LLMWrapper):
                 max_tokens=max_length,
                 temperature=temperature,
                 top_p=top_p,
-                n=1
+                n=1,
+                seed=kwargs.get("seed"),
             )
             outputs = self._engine.generate([prompt], params)
             if outputs and outputs[0].outputs:
@@ -1109,6 +1110,7 @@ class VLLMWrapper(LLMWrapper):
                 temperature=temperature,
                 top_p=top_p,
                 n=1,
+                seed=kwargs.get("seed"),
             )
             outs = self._engine.generate(formatted, params)
             result: List[str] = []

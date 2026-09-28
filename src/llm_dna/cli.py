@@ -142,6 +142,11 @@ def parse_arguments(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
         help="Optional explicit output file for single-model runs.",
     )
     parser.add_argument("--no-save", action="store_true")
+    parser.add_argument(
+        "--ignore-response-cache",
+        action="store_true",
+        help="Regenerate responses instead of reusing responses.json; keep the existing save policy.",
+    )
 
     # Quantization
     parser.add_argument("--load-in-8bit", action="store_true")
@@ -245,6 +250,7 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
             log_level=args.log_level,
             random_seed=args.random_seed,
             use_chat_template=args.use_chat_template,
+            use_response_cache=not args.ignore_response_cache,
         )
         try:
             results = calc_dna_parallel(
@@ -306,6 +312,7 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
                 log_level=args.log_level,
                 random_seed=args.random_seed,
                 use_chat_template=args.use_chat_template,
+                use_response_cache=not args.ignore_response_cache,
             )
 
             result = calc_dna(config)
