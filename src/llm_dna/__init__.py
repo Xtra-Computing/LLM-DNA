@@ -2,6 +2,7 @@
 
 __all__ = [
     "__version__",
+    "TextDNAExtractor",
     "DNAExtractionConfig",
     "DNAExtractionResult",
     "calc_dna",
@@ -15,6 +16,9 @@ __version__ = _version("llm-dna")
 
 
 def __getattr__(name: str):
+    if name == "TextDNAExtractor":
+        from .dna.TextDNAExtractor import TextDNAExtractor
+        return TextDNAExtractor
     if name in {
         "DNAExtractionConfig",
         "DNAExtractionResult",

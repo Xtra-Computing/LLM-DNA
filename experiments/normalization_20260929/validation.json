@@ -1,0 +1,28 @@
+{
+  "checked_utc": "2026-09-28T17:31:42.209972+00:00",
+  "test_command": "OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 .venv/bin/python -m pytest tests/ -o addopts='' -q",
+  "test_result": {
+    "passed": 122,
+    "skipped": 15,
+    "failed": 0,
+    "seconds": 4.14
+  },
+  "skips": "Explicit slow tests requiring real model loading or external APIs; not run in this cache-only task.",
+  "checks": [
+    "git diff --check passed",
+    "CLI --help exposes both normalization modes",
+    "script/extractor hashes match final experiment manifest",
+    "private repository git status remains clean"
+  ],
+  "reproduction": "316 cached models, 313 historical signatures, all 313 within 2.1e-6 maximum absolute error with normalization enabled; Qwen Table 1 reproduced.",
+  "cloud_changes": "No push or publication performed.",
+  "source_sha256": {
+    "src/llm_dna/api.py": "36ffc57e11fca52eac4385037a9e2e1294c9a8da99a15473eaaf4d0679464da1",
+    "src/llm_dna/cli.py": "75292f140909c072c6f0778f609681eb55708a272fafb79b9352be0211873e0b",
+    "src/llm_dna/core/extraction.py": "48a9546ea1310bce836f43419143086a46a6e95db227093513f84122db207e97",
+    "src/llm_dna/dna/TextDNAExtractor.py": "4c01bb39ce3cd7fe934d6bffb35432f8a10f5a9d69f36027f640d6ff57a48c5d",
+    "scripts/ablate_normalization.py": "b4be5911af7b981a50f28ceda019745d263e1f402c49e23fe7721be7d7a71c60",
+    "tests/test_text_extractor.py": "efe14e9ee8d39f1f2a4f1a4a460d7847b0940f2ccbf08ef6a9840d64f06f6382",
+    "tests/test_text_pipeline.py": "fde4889d4f6a18af54dcbd2ede6aa9efad8e7e444b1d3b187faf8d2f36b6f2e6"
+  }
+}

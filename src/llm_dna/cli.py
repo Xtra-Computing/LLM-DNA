@@ -98,9 +98,9 @@ def parse_arguments(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     )
 
     # Dataset and probes
-    parser.add_argument("--dataset", type=str, default="rand")
+    parser.add_argument("--dataset", type=str, default="squad,cqa,hs,wg,arc,mmlu")
     parser.add_argument("--probe-set", type=str, default="rand")
-    parser.add_argument("--max-samples", type=int, default=100)
+    parser.add_argument("--max-samples", type=int, default=100, help="Samples per dataset (600 total for the default six datasets).")
     parser.add_argument("--data-root", type=str, default="./data")
 
     # DNA extraction
@@ -115,7 +115,7 @@ def parse_arguments(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
         "--reduction-method",
         type=str,
         default="random_projection",
-        choices=["pca", "svd", "random_projection"],
+        choices=["random_projection"],
     )
     parser.add_argument(
         "--embedding-merge",
@@ -124,6 +124,13 @@ def parse_arguments(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
         choices=["sum", "max", "mean", "concat"],
     )
     parser.add_argument("--max-length", type=int, default=1024)
+    parser.add_argument("--sentence-encoder", default="Qwen/Qwen3-Embedding-8B")
+    parser.add_argument("--encoder-device", default=None)
+    parser.add_argument("--pre-agg-embed-dim", type=int, default=64)
+    parser.add_argument("--normalize-embeddings", action=argparse.BooleanOptionalAction, default=False,
+                        help="L2 normalize each reduced response embedding before concatenation.")
+    parser.add_argument("--temperature", type=float, default=0.7)
+    parser.add_argument("--top-p", type=float, default=0.9)
 
     # Output
     parser.add_argument("--output-dir", type=Path, default=Path("./out"))
@@ -173,9 +180,9 @@ def parse_arguments(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     parser.add_argument("--random-seed", type=int, default=42)
     parser.add_argument(
         "--use-chat-template",
-        action="store_true",
-        default=False,
-        help="Apply chat template for HuggingFace models (default: disabled).",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Apply available chat templates for HuggingFace models.",
     )
 
     return parser.parse_args(list(argv) if argv is not None else None)
@@ -216,6 +223,12 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
             dna_dim=args.dna_dim,
             reduction_method=args.reduction_method,
             embedding_merge=args.embedding_merge,
+            sentence_encoder=args.sentence_encoder,
+            encoder_device=args.encoder_device,
+            pre_agg_embed_dim=args.pre_agg_embed_dim,
+            normalize_embeddings=args.normalize_embeddings,
+            temperature=args.temperature,
+            top_p=args.top_p,
             max_length=args.max_length,
             output_dir=args.output_dir,
             output_path=None,
@@ -271,6 +284,12 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
                 dna_dim=args.dna_dim,
                 reduction_method=args.reduction_method,
                 embedding_merge=args.embedding_merge,
+                sentence_encoder=args.sentence_encoder,
+                encoder_device=args.encoder_device,
+                pre_agg_embed_dim=args.pre_agg_embed_dim,
+                normalize_embeddings=args.normalize_embeddings,
+                temperature=args.temperature,
+                top_p=args.top_p,
                 max_length=args.max_length,
                 output_dir=args.output_dir,
                 output_path=args.output_path if single_model_run else None,

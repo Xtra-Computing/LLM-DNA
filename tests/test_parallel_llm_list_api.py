@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 import threading
 import time
 
@@ -20,7 +21,7 @@ class _FakeSentenceEncoder:
     def __init__(self, *_args, **kwargs):
         self.device = kwargs.get("device")
 
-    def encode(self, texts, convert_to_numpy=True, show_progress_bar=False, batch_size=32):
+    def encode(self, texts, convert_to_numpy=True, show_progress_bar=False, batch_size=32, normalize_embeddings=False):
         embeddings = []
         for index, text in enumerate(texts):
             base = float(len(text) % 11)
@@ -200,14 +201,16 @@ def test_calc_dna_parallel_uses_cached_responses_without_metadata_or_generation(
     safe_model_name = "openrouter_pony-alpha"
     cache_path = tmp_path / "out" / "rand" / safe_model_name / "responses.json"
     cache_path.parent.mkdir(parents=True, exist_ok=True)
-    # Intentionally mismatched count: cached=1, expected=3 -> should be normalized.
+    # Empty replies retain their original probe slots.
     cache_path.write_text(
         """{
   "model": "openrouter/pony-alpha",
   "dataset": "rand",
-  "count": 1,
+  "count": 3,
   "items": [
-    {"prompt": "prompt A", "response": "cached response 1"}
+    {"prompt": "prompt A", "response": "cached response 1"},
+    {"prompt": "prompt B", "response": ""},
+    {"prompt": "prompt C", "response": ""}
   ]
 }""",
         encoding="utf-8",
@@ -271,7 +274,7 @@ def test_calc_dna_single_model_uses_cached_responses_without_metadata_or_generat
     )
 
     seen: dict[str, object] = {}
-    signature_obj = object()
+    signature_obj = SimpleNamespace(metadata=SimpleNamespace(extractor_config={}))
     vector_obj = np.asarray([1.0, 2.0, 3.0, 4.0], dtype=np.float32)
 
     def fake_extract_signature(
@@ -282,6 +285,7 @@ def test_calc_dna_single_model_uses_cached_responses_without_metadata_or_generat
         generation_device,
         sentence_encoder="all-mpnet-base-v2",
         encoder_device=None,
+        probe_texts=None,
     ):
         del sentence_encoder
         seen["model_name"] = model_name

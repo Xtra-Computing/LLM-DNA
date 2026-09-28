@@ -26,7 +26,7 @@ class DNAExtractionConfig:
     model_name: str
     model_path: Optional[str] = None
     model_type: str = "auto"
-    dataset: str = "rand"
+    dataset: str = "squad,cqa,hs,wg,arc,mmlu"
     probe_set: str = "rand"
     max_samples: int = 100
     data_root: str = "./data"
@@ -34,7 +34,13 @@ class DNAExtractionConfig:
     dna_dim: int = 128
     reduction_method: str = "random_projection"
     embedding_merge: str = "concat"
+    sentence_encoder: str = "Qwen/Qwen3-Embedding-8B"
+    encoder_device: Optional[str] = None
+    pre_agg_embed_dim: int = 64
+    normalize_embeddings: bool = False
     max_length: int = 1024
+    temperature: float = 0.7
+    top_p: float = 0.9
     output_dir: Path = Path("./out")
     output_path: Optional[Path] = None
     save: bool = True
@@ -48,7 +54,7 @@ class DNAExtractionConfig:
     gpu_id: Optional[int] = None
     log_level: str = "INFO"
     random_seed: int = 42
-    use_chat_template: bool = False
+    use_chat_template: bool = True
 
 
 @dataclass(slots=True)
@@ -139,7 +145,11 @@ def _resolve_device(config: DNAExtractionConfig) -> str:
 
     if config.gpu_id is not None:
         return core.validate_device_argument(f"cuda:{int(config.gpu_id)}")
-    return core.validate_device_argument(config.device)
+    device = core.validate_device_argument(config.device)
+    if device == "auto":
+        import torch
+        return "cuda:0" if torch.cuda.is_available() else "cpu"
+    return device
 
 
 def _validate_quantization(config: DNAExtractionConfig) -> None:
@@ -187,6 +197,7 @@ def _save_signature_outputs(
     signature.save(output_path, format="json")
 
     config_dump = asdict(config)
+    config_dump.pop("token", None)
     config_dump["output_dir"] = str(config.output_dir)
     if config.output_path is not None:
         config_dump["output_path"] = str(config.output_path)
@@ -301,7 +312,11 @@ def _normalize_responses(responses: list[str], expected_count: int) -> list[str]
     return normalized
 
 
-def _load_cached_responses(path: Path, expected_count: int) -> Optional[list[str]]:
+def _load_cached_responses(
+    path: Path, expected_count: int, expected_prompts: Optional[list[str]] = None,
+    expected_model: Optional[str] = None,
+    expected_generation_config: Optional[Dict[str, Any]] = None,
+) -> Optional[list[str]]:
     if not path.exists():
         return None
 
@@ -313,6 +328,13 @@ def _load_cached_responses(path: Path, expected_count: int) -> Optional[list[str
         return None
 
     if isinstance(payload, dict):
+        if expected_model is not None and payload.get("model") != expected_model:
+            logging.warning("Ignoring response cache %s: model identity differs.", path)
+            return None
+        if (expected_generation_config is not None and payload.get("generation_config") is not None
+                and payload["generation_config"] != expected_generation_config):
+            logging.warning("Ignoring response cache %s: generation settings differ.", path)
+            return None
         complete = payload.get("complete")
         if complete is False:
             logging.warning("Ignoring incomplete cached responses at %s", path)
@@ -320,8 +342,17 @@ def _load_cached_responses(path: Path, expected_count: int) -> Optional[list[str
 
     responses: list[str]
     if isinstance(payload, dict) and isinstance(payload.get("items"), list):
-        responses = [str(item.get("response", "")) for item in payload["items"] if isinstance(item, dict)]
+        items = payload["items"]
+        if any(not isinstance(item, dict) for item in items):
+            return None
+        if expected_prompts is not None and [item.get("prompt") for item in items] != expected_prompts:
+            logging.warning("Ignoring response cache %s: ordered probes differ.", path)
+            return None
+        responses = [str(item["response"]) if item.get("response") is not None else "" for item in items]
     elif isinstance(payload, list):
+        if expected_prompts is not None:
+            logging.warning("Ignoring response cache %s: no ordered probe provenance.", path)
+            return None
         responses = [str(item) for item in payload]
     else:
         logging.warning("Unexpected cached response format at %s", path)
@@ -337,15 +368,34 @@ def _load_cached_responses(path: Path, expected_count: int) -> Optional[list[str
 
     if len(responses) != expected_count:
         logging.warning(
-            "Cached responses at %s have probe count mismatch (%s != %s); normalizing by truncating/padding.",
+            "Ignoring cached responses at %s: probe count mismatch (%s != %s).",
             path,
             len(responses),
             expected_count,
         )
+        return None
     else:
         logging.info("Loaded cached responses from %s (%d items).", path, len(responses))
 
     return _normalize_responses(responses, expected_count=expected_count)
+
+
+def _generation_config(config: DNAExtractionConfig) -> Dict[str, Any]:
+    return {"max_length": config.max_length, "temperature": config.temperature,
+            "top_p": config.top_p, "use_chat_template": config.use_chat_template,
+            "do_sample": config.temperature > 0}
+
+
+def _response_provenance(config: DNAExtractionConfig, path: Path, cached: bool) -> Dict[str, Any]:
+    actual = _generation_config(config)
+    if cached:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        actual = payload.get("generation_config") if isinstance(payload, dict) else None
+    return {"response_source": "cache" if cached else "generated",
+            "response_cache_path": str(path) if cached else None,
+            "generation_config": actual,
+            "generation_config_status": "recorded" if actual is not None else "unknown_legacy_cache",
+            "requested_generation_config": _generation_config(config)}
 
 
 def _save_response_cache(
@@ -354,6 +404,7 @@ def _save_response_cache(
     dataset: str,
     prompts: list[str],
     responses: list[str],
+    generation_config: Optional[Dict[str, Any]] = None,
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     items = [{"prompt": str(prompt), "response": str(response)} for prompt, response in zip(prompts, responses)]
@@ -361,6 +412,8 @@ def _save_response_cache(
         "model": model_name,
         "dataset": dataset,
         "count": len(items),
+        "complete": True,
+        "generation_config": generation_config,
         "items": items,
         "generated_at": datetime.now().isoformat(),
     }
@@ -412,6 +465,7 @@ def _generate_responses_for_model(
                 "dataset": config.dataset,
                 "count": len(incremental_items),
                 "complete": len(incremental_items) >= len(probe_texts),
+                "generation_config": _generation_config(config),
                 "items": incremental_items,
                 "generated_at": datetime.now().isoformat(),
             }
@@ -423,9 +477,9 @@ def _generate_responses_for_model(
             responses = model.generate_batch(
                 probe_texts,
                 max_length=config.max_length,
-                temperature=0.0,
-                do_sample=False,
-                top_p=1.0,
+                temperature=config.temperature,
+                do_sample=config.temperature > 0,
+                top_p=config.top_p,
                 use_chat_template=config.use_chat_template,
                 on_response_callback=_save_response_incrementally if incremental_save_path else None,
             )
@@ -435,9 +489,9 @@ def _generate_responses_for_model(
                 response = model.generate(
                     prompt,
                     max_length=config.max_length,
-                    temperature=0.0,
-                    do_sample=False,
-                    top_p=1.0,
+                    temperature=config.temperature,
+                    do_sample=config.temperature > 0,
+                    top_p=config.top_p,
                     use_chat_template=config.use_chat_template,
                 )
                 responses.append(response)
@@ -453,77 +507,53 @@ def _generate_responses_for_model(
     return _normalize_responses(list(responses), expected_count=len(probe_texts))
 
 
+def _make_text_extractor(config, *, sentence_encoder=None, device="cpu"):
+    from .dna.TextDNAExtractor import TextDNAExtractor
+
+    return TextDNAExtractor(
+        dna_dim=config.dna_dim,
+        pre_agg_embed_dim=config.pre_agg_embed_dim,
+        normalize_embeddings=config.normalize_embeddings,
+        random_seed=config.random_seed,
+        aggregation_method=config.embedding_merge,
+        reduction_method=config.reduction_method,
+        encoder_name=sentence_encoder or config.sentence_encoder,
+        device=device,
+    )
+
+
 def _extract_signature_from_text_responses(
     model_name: str,
     responses: list[str],
     config: DNAExtractionConfig,
     model_meta: Dict[str, Any],
     generation_device: str,
-    sentence_encoder: str = "all-mpnet-base-v2",
+    sentence_encoder: Optional[str] = None,
     encoder_device: Optional[str] = None,
+    probe_texts: Optional[list[str]] = None,
 ) -> tuple["DNASignature", np.ndarray, float]:
-    from .dna.DNASignature import DNAMetadata, DNASignature
-    from .dna.EmbeddingDNAExtractor import EmbeddingDNAExtractor
-    from sentence_transformers import SentenceTransformer
-
-    if not responses:
-        raise ValueError("No responses available for text-response embedding extraction.")
-
-    resolved_encoder_device = encoder_device or generation_device or "cpu"
-    logging.info(
-        "Encoding %d cached response(s) with sentence encoder '%s' on %s",
-        len(responses),
-        sentence_encoder,
-        resolved_encoder_device,
+    resolved_encoder_device = encoder_device or config.encoder_device or generation_device or "cpu"
+    if resolved_encoder_device == "auto":
+        resolved_encoder_device = _resolve_device(replace(config, gpu_id=None, device="auto"))
+    extractor = _make_text_extractor(
+        config, sentence_encoder=sentence_encoder, device=resolved_encoder_device,
     )
-
-    encode_started = time.time()
-    encoder = SentenceTransformer(sentence_encoder, device=resolved_encoder_device)
-    embeddings = encoder.encode(
+    started = time.time()
+    signature = extractor.extract_dna_from_answers(
         responses,
-        convert_to_numpy=True,
-        show_progress_bar=False,
-        batch_size=32,
-    )
-    embeddings = np.asarray(embeddings, dtype=np.float32)
-    encode_seconds = time.time() - encode_started
-
-    reducer = EmbeddingDNAExtractor(
-        dna_dim=config.dna_dim,
-        reduction_method=config.reduction_method,
-        aggregation_method=config.embedding_merge,
-        device="cpu",
-        random_seed=config.random_seed,
-    )
-
-    reduce_started = time.time()
-    reduced_vector = reducer._reduce_features(embeddings)
-    reduce_seconds = time.time() - reduce_started
-
-    metadata = DNAMetadata(
         model_name=model_name,
-        extraction_method=f"text_response_embeddings_{config.reduction_method}_{config.embedding_merge}",
         probe_set_id=f"{config.dataset}_{len(responses)}",
-        probe_count=len(responses),
-        dna_dimension=config.dna_dim,
-        embedding_dimension=int(embeddings.shape[1]) if embeddings.ndim == 2 else 0,
-        reduction_method=config.reduction_method,
-        extraction_time=datetime.now().isoformat(),
-        computation_time_seconds=encode_seconds + reduce_seconds,
+        probe_inputs=probe_texts,
         model_metadata=model_meta,
-        extractor_config={
+        provenance={
             "mode": "single_cached_response_embeddings",
-            "sentence_encoder": sentence_encoder,
             "generation_device": generation_device,
             "encoder_device": resolved_encoder_device,
-            "max_length": config.max_length,
+            "requested_generation_config": _generation_config(config),
             "dataset": config.dataset,
         },
-        aggregation_method=config.embedding_merge,
     )
-    signature = DNASignature(signature=np.asarray(reduced_vector, dtype=np.float32), metadata=metadata)
-    vector = _validate_signature(signature)
-    return signature, vector, (encode_seconds + reduce_seconds)
+    return signature, _validate_signature(signature), time.time() - started
 
 
 def calc_dna(config: DNAExtractionConfig) -> DNAExtractionResult:
@@ -534,6 +564,7 @@ def calc_dna(config: DNAExtractionConfig) -> DNAExtractionResult:
 
     setup_logging(level=config.log_level)
     _validate_quantization(config)
+    _make_text_extractor(config)  # Validate before loading models or generating responses.
 
     start_time = time.time()
     metadata_file = Path(config.metadata_file) if config.metadata_file is not None else None
@@ -558,7 +589,10 @@ def calc_dna(config: DNAExtractionConfig) -> DNAExtractionResult:
         )
 
     response_path = _response_cache_path(config, config.model_name)
-    cached_responses = _load_cached_responses(response_path, expected_count=len(probe_texts))
+    cached_responses = _load_cached_responses(
+        response_path, expected_count=len(probe_texts), expected_prompts=probe_texts,
+        expected_model=config.model_name, expected_generation_config=_generation_config(config),
+    )
     model_meta: Dict[str, Any] = _default_model_metadata(config.model_name)
     responses: list[str]
 
@@ -600,6 +634,7 @@ def calc_dna(config: DNAExtractionConfig) -> DNAExtractionResult:
                 dataset=config.dataset,
                 prompts=probe_texts,
                 responses=responses,
+                generation_config=_generation_config(config),
             )
 
     signature, vector, _ = _extract_signature_from_text_responses(
@@ -608,7 +643,12 @@ def calc_dna(config: DNAExtractionConfig) -> DNAExtractionResult:
         config=config,
         model_meta=model_meta,
         generation_device=resolved_device,
-        encoder_device=resolved_device,
+        encoder_device=config.encoder_device or resolved_device,
+        probe_texts=probe_texts,
+    )
+
+    signature.metadata.extractor_config.setdefault("provenance", {}).update(
+        _response_provenance(config, response_path, cached_responses is not None)
     )
 
     elapsed_seconds = time.time() - start_time
@@ -642,7 +682,7 @@ def calc_dna_parallel(
     gpu_ids: Optional[list[int]] = None,
     n_processes: Optional[int] = None,
     continue_on_error: bool = False,
-    sentence_encoder: str = "all-mpnet-base-v2",
+    sentence_encoder: Optional[str] = None,
     encoder_device: str = "auto",
     use_response_cache: bool = True,
 ) -> list[DNAExtractionResult]:
@@ -653,12 +693,11 @@ def calc_dna_parallel(
     """
 
     from .core import extraction as core
-    from .dna.DNASignature import DNAMetadata, DNASignature
-    from .dna.EmbeddingDNAExtractor import EmbeddingDNAExtractor
     from .utils.DataUtils import setup_logging
 
     setup_logging(level=config.log_level)
     _validate_quantization(config)
+    _make_text_extractor(config, sentence_encoder=sentence_encoder)
 
     if config.max_samples < 2:
         raise ValueError("Batch text-embedding mode requires max_samples >= 2.")
@@ -737,8 +776,12 @@ def calc_dna_parallel(
                 response_path = _response_cache_path(config, model_name)
                 responses: Optional[list[str]] = None
                 if use_response_cache:
-                    responses = _load_cached_responses(response_path, expected_count=len(probe_texts))
+                    responses = _load_cached_responses(
+                        response_path, expected_count=len(probe_texts), expected_prompts=probe_texts,
+                        expected_model=model_name, expected_generation_config=_generation_config(config),
+                    )
 
+                used_cache = responses is not None
                 if responses is not None:
                     # Cached responses allow downstream encoding without provider API keys.
                     model_meta = _default_model_metadata(model_name)
@@ -770,8 +813,11 @@ def calc_dna_parallel(
                             dataset=config.dataset,
                             prompts=probe_texts,
                             responses=responses,
+                            generation_config=_generation_config(config),
                         )
 
+                if not responses or not any(response.strip() for response in responses):
+                    raise ValueError("All provided answers are empty; refusing DNA extraction")
                 result_queue.put(
                     {
                         "success": True,
@@ -779,6 +825,7 @@ def calc_dna_parallel(
                         "device": device,
                         "metadata": model_meta,
                         "responses": responses,
+                        "response_provenance": _response_provenance(config, response_path, used_cache),
                         "generation_seconds": time.time() - started,
                     }
                 )
@@ -847,35 +894,14 @@ def calc_dna_parallel(
         model_slices[payload["model_name"]] = (start, len(all_responses))
 
     if encoder_device == "auto":
-        encoder_device = worker_devices[0] if worker_devices else "cpu"
-
-    logging.info(
-        "Encoding %d response(s) with sentence encoder '%s' on %s",
-        len(all_responses),
-        sentence_encoder,
-        encoder_device,
-    )
-
-    from sentence_transformers import SentenceTransformer
-
-    encoder = SentenceTransformer(sentence_encoder, device=encoder_device)
+        encoder_device = config.encoder_device or (worker_devices[0] if worker_devices else "cpu")
+    if encoder_device == "auto":
+        encoder_device = _resolve_device(replace(config, gpu_id=None, device="auto"))
+    sentence_encoder = sentence_encoder or config.sentence_encoder
+    reducer = _make_text_extractor(config, sentence_encoder=sentence_encoder, device=encoder_device)
     encode_started = time.time()
-    all_embeddings = encoder.encode(
-        all_responses,
-        convert_to_numpy=True,
-        show_progress_bar=False,
-        batch_size=32,
-    )
-    all_embeddings = np.asarray(all_embeddings, dtype=np.float32)
+    all_embeddings = reducer.encode_answers(all_responses)
     encode_seconds = time.time() - encode_started
-
-    reducer = EmbeddingDNAExtractor(
-        dna_dim=config.dna_dim,
-        reduction_method=config.reduction_method,
-        aggregation_method=config.embedding_merge,
-        device="cpu",
-        random_seed=config.random_seed,
-    )
 
     results: list[DNAExtractionResult] = []
     for payload in ordered_payloads:
@@ -884,34 +910,26 @@ def calc_dna_parallel(
         model_embeddings = all_embeddings[start:end]
 
         reduce_started = time.time()
-        reduced_vector = reducer._reduce_features(model_embeddings)
-        reduce_seconds = time.time() - reduce_started
-
-        metadata = DNAMetadata(
+        signature = reducer.extract_dna_from_embeddings(
+            model_embeddings,
             model_name=model_name,
-            extraction_method=f"text_response_embeddings_{config.reduction_method}_{config.embedding_merge}",
             probe_set_id=f"{config.dataset}_{len(probe_texts)}",
-            probe_count=len(probe_texts),
-            dna_dimension=config.dna_dim,
-            embedding_dimension=int(model_embeddings.shape[1]),
-            reduction_method=config.reduction_method,
-            extraction_time=datetime.now().isoformat(),
-            computation_time_seconds=payload["generation_seconds"] + encode_seconds + reduce_seconds,
+            probe_inputs=probe_texts,
             model_metadata=payload["metadata"],
-            extractor_config={
+            provenance={
                 "mode": "llm_list_parallel_batch",
-                "sentence_encoder": sentence_encoder,
                 "generation_device": payload["device"],
                 "encoder_device": encoder_device,
-                "max_length": config.max_length,
+                **payload["response_provenance"],
                 "dataset": config.dataset,
             },
-            aggregation_method=config.embedding_merge,
         )
-        signature = DNASignature(signature=np.asarray(reduced_vector, dtype=np.float32), metadata=metadata)
+        reduce_seconds = time.time() - reduce_started
+        signature.metadata.computation_time_seconds = payload["generation_seconds"] + encode_seconds + reduce_seconds
         vector = _validate_signature(signature)
 
-        model_config = replace(config, model_name=model_name, output_path=None)
+        model_config = replace(config, model_name=model_name, output_path=None,
+                               sentence_encoder=sentence_encoder, encoder_device=encoder_device)
         output_path: Optional[Path] = None
         summary_path: Optional[Path] = None
         elapsed_seconds = payload["generation_seconds"] + encode_seconds + reduce_seconds

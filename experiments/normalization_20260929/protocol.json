@@ -1,0 +1,31 @@
+{
+  "created_utc": "2026-09-28T17:28:19.727327+00:00",
+  "comparison": [
+    "none",
+    "l2"
+  ],
+  "encoder": "Qwen/Qwen3-Embedding-8B",
+  "raw_embedding_dimensions": 4096,
+  "first_dimensions": 64,
+  "probe_count": 600,
+  "dna_dimensions": 128,
+  "projection_seeds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    42
+  ],
+  "split_seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "heldout_seed": 1729,
+  "paper_replay": "Each enriched seed file separately; sorted unique triples; stratified 80/20 pair-row split for every split seed; historical SVM pipeline. Report DNA-only full47 and the paper Table1 common43-model cohort restricted by saved PhyloLM availability.",
+  "selection": "Deduplicate ordered model pairs across enriched files. Split by unordered pair group, stratifying groups by any positive label. Hold out 20% groups once; split remaining groups 75/25 for each split seed. Choose normalization by mean validation F1 across projection/split seeds, then AUC, then none. Test labels never used in the choice.",
+  "scope": "Frozen cached responses and embeddings; no answer regeneration or routing rerun. Models may occur in multiple partitions. Repeated seeds are sensitivity analyses, not independent datasets."
+}

@@ -42,7 +42,7 @@ def main():
     parser.add_argument(
         "--dataset",
         type=str,
-        default="rand",
+        default="squad,cqa,hs,wg,arc,mmlu",
         help="Dataset for probe generation"
     )
     parser.add_argument(
@@ -73,6 +73,8 @@ def main():
         action="store_true",
         help="Don't save results to disk"
     )
+    parser.add_argument("--sentence-encoder", default="Qwen/Qwen3-Embedding-8B")
+    parser.add_argument("--normalize-embeddings", action=argparse.BooleanOptionalAction, default=False)
     args = parser.parse_args()
 
     # Set paths relative to project root
@@ -89,6 +91,8 @@ def main():
     config = DNAExtractionConfig(
         model_name=args.model,
         dataset=args.dataset,
+        sentence_encoder=args.sentence_encoder,
+        normalize_embeddings=args.normalize_embeddings,
         gpu_id=args.gpu,
         max_samples=args.samples,
         data_root=data_root,

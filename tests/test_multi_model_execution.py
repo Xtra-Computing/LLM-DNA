@@ -80,7 +80,7 @@ def test_cli_hyperparameter_variation_is_forwarded(monkeypatch, tmp_path):
             "--dna-dim",
             "64",
             "--reduction-method",
-            "svd",
+            "random_projection",
             "--embedding-merge",
             "mean",
             "--max-length",
@@ -99,7 +99,7 @@ def test_cli_hyperparameter_variation_is_forwarded(monkeypatch, tmp_path):
     assert cfg.dataset == "rand"
     assert cfg.max_samples == 16
     assert cfg.dna_dim == 64
-    assert cfg.reduction_method == "svd"
+    assert cfg.reduction_method == "random_projection"
     assert cfg.embedding_merge == "mean"
     assert cfg.max_length == 256
     assert cfg.load_in_4bit is True

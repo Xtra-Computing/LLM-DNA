@@ -1,0 +1,2 @@
+# Preserve the standard CRLF records produced by Python's CSV writer.
+experiments/**/*.csv whitespace=cr-at-eol

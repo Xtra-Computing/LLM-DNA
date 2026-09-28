@@ -25,6 +25,7 @@ def _real_config(**overrides) -> DNAExtractionConfig:
         "dna_dim": 32,
         "device": MODEL_DEVICE,
         "save": False,
+        "temperature": 0.0,  # These integration tests check deterministic generation.
     }
     base.update(overrides)
     return DNAExtractionConfig(**base)
@@ -79,10 +80,10 @@ class TestRealModelExecution:
         result = calc_dna(_real_config(dna_dim=dim))
         _assert_valid_vector(result.vector, dim=dim)
 
-    @pytest.mark.parametrize("method", ["random_projection", "pca", "svd"])
-    def test_different_reduction_methods(self, method):
-        """Test extraction with different reduction methods."""
-        result = calc_dna(_real_config(reduction_method=method))
+    @pytest.mark.parametrize("normalize", [True, False])
+    def test_normalization_settings(self, normalize):
+        """Test the two supported normalization variants."""
+        result = calc_dna(_real_config(normalize_embeddings=normalize))
         _assert_valid_vector(result.vector, dim=32)
 
     @pytest.mark.parametrize("samples", [3, 10, 25])
