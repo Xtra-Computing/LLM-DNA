@@ -13,11 +13,11 @@
 The explosive growth of large language models has created a vast but opaque landscape: millions of models exist, yet their evolutionary relationships through fine-tuning, distillation, or adaptation are often undocumented. **LLM-DNA** provides a general, scalable, training-free pipeline for extracting LLM DNA — mathematically-grounded representations that satisfy inheritance and genetic determinism properties.
 
 **Key Features:**
-- 🧬 Extract DNA vectors from any HuggingFace or local model
+- 🧬 Extract DNA vectors from HuggingFace, local, and supported API models
 - 🚀 Training-free, works across architectures and tokenizers  
-- 📊 Tested on 305+ LLMs with superior or competitive performance
-- 🔍 Uncover undocumented relationships between models
-- 🌳 Build evolutionary trees using phylogenetic algorithms
+- ⚙️ Configure probes, answer encoders, and shared projection dimensions
+- 📦 Run single-model or batch extraction through Python or the CLI
+- 💾 Save DNA vectors with metadata and reuse validated response caches
 
 ## Installation
 
@@ -50,8 +50,8 @@ Extra guidance:
 
 ## Extraction method and defaults
 
-The public single-model API, batch API, and CLI now use `TextDNAExtractor`,
-restoring the original experiment's text-response pipeline:
+The public single-model API, batch API, and CLI use `TextDNAExtractor` to compute
+DNA from model responses:
 
 1. Use the same ordered probes for every model. The default is 100 probes each
    from `squad,cqa,hs,wg,arc,mmlu`, for 600 probes total.
@@ -60,7 +60,7 @@ restoring the original experiment's text-response pipeline:
 3. Optionally L2 normalize each 64-dimensional answer embedding.
 4. Concatenate all 600 slots into 38,400 dimensions and project the entire vector
    into 128 dimensions using a shared float32 Gaussian matrix, seed 42, with
-   unit-length columns, exactly as in the private implementation.
+   unit-length columns.
 
 There is no per-model fitted scaler, per-probe final projection, or truncation
 of the concatenated vector. The resulting DNA is not normalized. PCA/SVD fitting
@@ -73,27 +73,18 @@ with `"text"`, or omit the option to use the default.
 
 `normalize_embeddings` controls the extra L2 normalization **after the 64-coordinate
 slice**, not any normalization inside the encoder or the projection matrix's
-column normalization. The private experiment enabled this step, while the paper's
-algorithm does not explicitly describe it. Both settings are available; see the
-[normalization experiment](experiments/normalization_20260929/README.md) for the
-measured comparison and default selection, and the
-[source audit](docs/reproduction_audit.md) for implementation and paper provenance.
-
-The provisional default is **`normalize_embeddings=False`**. Across six projection
-seeds, its mean F1 is 0.92434 versus 0.92313 with L2 on the original paper cohort;
-this small difference does not establish superiority. A separate deduplicated,
-pair-group-disjoint validation failed to demonstrate useful F1 for either arm.
-For exact reconstruction of the original saved experiment, explicitly use
-`normalize_embeddings=True` / `--normalize-embeddings`: all 313 saved signatures
-match within 2.1e-6 and the published Table 1 Qwen row is reproduced.
+column normalization. The default is **`normalize_embeddings=False`**. Enable it
+with `normalize_embeddings=True` / `--normalize-embeddings`, or disable it with
+`normalize_embeddings=False` / `--no-normalize-embeddings`. Use the same setting
+for all models whose DNA vectors you compare.
 
 Generation defaults are `max_length=1024`, `temperature=0.7`, `top_p=0.9`, with
-available chat templates enabled. These settings follow the original experiment;
-backend, model revision, quantization, and generation randomness can still change
-answers. `random_seed` seeds probe sampling and the shared projection; it does not
-control provider/Hugging Face sampling. Replaying the original caches is the reproducible comparison. The
-8B sentence encoder needs substantially more memory than the old MPNet default.
-An explicitly selected alternative encoder produces a different DNA space.
+available chat templates enabled. Backend, model revision, quantization, and
+generation randomness can change answers. `random_seed` seeds probe sampling and
+the shared projection; it does not
+control provider/Hugging Face sampling. The default 8B sentence encoder requires
+substantial memory. An explicitly selected alternative encoder produces a
+different DNA space.
 
 Vectors from the former public pipeline are incompatible with the corrected
 vectors and must be recomputed. Compare only vectors with matching encoder,
@@ -166,21 +157,7 @@ calc-dna \
 - **Auth token**: Pass via `token=...` or set `HF_TOKEN` environment variable.
 - **Chat templates**: Enabled when available. Disable with `--no-use-chat-template` or `use_chat_template=False`.
 
-## Offline replay and normalization ablation
-
-With an existing checkout of the private experiment repository and its caches:
-
-```bash
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 \
-  .venv/bin/python scripts/ablate_normalization.py \
-  --private-root /home/zhaomin/project/dna \
-  --output-dir experiments/normalization_20260929
-```
-
-The script reads original inputs without modifying them and records source hashes,
-cohort selection, paired metrics, and vector reconstruction errors. It performs no
-model generation or provider API calls. See its `--help` for controls and the
-experiment report for the exact command used.
+## Extract from precomputed embeddings
 
 To extract from your own raw encoder embedding cache without loading a model:
 
@@ -189,13 +166,13 @@ import numpy as np
 from llm_dna import TextDNAExtractor
 
 raw = np.load("ordered_response_embeddings.npy", allow_pickle=False)  # [probes, encoder_dim]
-extractor = TextDNAExtractor(normalize_embeddings=True)  # original implementation
+extractor = TextDNAExtractor()
 signature = extractor.extract_dna_from_embeddings(raw, model_name="my-model")
 ```
 
-Use `normalize_embeddings=False` or `--no-normalize-embeddings` for the ablation
-without extra row normalization. The same cached raw embeddings and projection
-must be used for both settings.
+Pass raw encoder outputs before dimension reduction or optional row normalization.
+Use the same encoder, ordered probes, preprocessing, and projection settings for
+every model being compared.
 
 ## Tests
 

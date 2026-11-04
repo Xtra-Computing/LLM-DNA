@@ -20,6 +20,8 @@ pytest_cache/
 htmlcov/
 
 # Data/outputs
+# Experiment artifacts are maintained on the reproduction branch.
+/experiments/
 /cache/
 /data/*
 !/data/rand/
@@ -38,5 +40,3 @@ htmlcov/
 
 /uv.lock
 /.env
-/CLAUDE.md
-/claude.md

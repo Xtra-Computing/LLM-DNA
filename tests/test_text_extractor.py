@@ -9,8 +9,8 @@ import pytest
 from llm_dna.dna.TextDNAExtractor import TextDNAExtractor
 
 
-def private_concat_formula(raw, *, normalize=True, seed=42, slot_dim=64, dna_dim=128):
-    """Independent transcription of the private repository's normal Qwen path."""
+def reference_concat_formula(raw, *, normalize=True, seed=42, slot_dim=64, dna_dim=128):
+    """Reference formula for Qwen prefix slicing, concatenation, and projection."""
     rows = raw[:, :slot_dim].astype(np.float32)
     if normalize:
         norms = np.linalg.norm(rows, axis=1, keepdims=True)
@@ -29,7 +29,7 @@ def test_default_preserves_prefix_magnitudes():
 
 
 @pytest.mark.parametrize("normalize", [True, False])
-def test_concat_matches_private_formula_without_scaler_or_final_normalization(normalize):
+def test_concat_matches_reference_formula_without_scaler_or_final_normalization(normalize):
     raw = np.random.RandomState(7).normal(size=(12, 96)).astype(np.float32)
     raw[4] = 0  # A missing answer must retain its position in the concatenation.
     original = raw.copy()
@@ -37,7 +37,7 @@ def test_concat_matches_private_formula_without_scaler_or_final_normalization(no
 
     actual = extractor.reduce_embeddings(raw)
 
-    np.testing.assert_array_equal(actual, private_concat_formula(raw, normalize=normalize))
+    np.testing.assert_array_equal(actual, reference_concat_formula(raw, normalize=normalize))
     np.testing.assert_array_equal(raw, original)
     assert actual.shape == (128,)
     assert actual.dtype == np.float32
@@ -88,7 +88,7 @@ def test_normalization_is_after_prefix_and_removes_per_probe_scale_only_when_ena
 
 
 @pytest.mark.parametrize("aggregation", ["concat", "mean", "sum", "max"])
-def test_zero_placeholders_and_aggregation_follow_private_formulas(aggregation):
+def test_zero_placeholders_and_aggregation_follow_reference_formulas(aggregation):
     raw = np.random.RandomState(10).normal(size=(4, 96)).astype(np.float32)
     raw[1] = 0
     extractor = TextDNAExtractor(aggregation_method=aggregation, normalize_embeddings=True)
@@ -97,7 +97,7 @@ def test_zero_placeholders_and_aggregation_follow_private_formulas(aggregation):
     non_empty = rows[[0, 2, 3]]
     projection = extractor._get_or_create_projection_matrix(64, 128)
     if aggregation == "concat":
-        expected = private_concat_formula(raw)
+        expected = reference_concat_formula(raw)
     elif aggregation == "mean":
         expected = (non_empty.mean(axis=0, keepdims=True) @ projection).reshape(-1)
     elif aggregation == "sum":
@@ -128,7 +128,7 @@ def test_answer_encoding_preserves_slots_and_explicitly_disables_extra_encoder_n
     np.testing.assert_array_equal(raw[1:3], np.zeros((2, 96)))
     assert raw[-1, -1] == 192
     signature = extractor.extract_dna_from_answers(answers, model_name="example", encoder=encoder)
-    np.testing.assert_array_equal(signature.signature, private_concat_formula(raw))
+    np.testing.assert_array_equal(signature.signature, reference_concat_formula(raw))
     assert signature.metadata.probe_count == 4
     with pytest.raises(ValueError, match="All provided answers are empty"):
         extractor.encode_answers(["", " "], encoder=encoder)

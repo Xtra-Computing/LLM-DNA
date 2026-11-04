@@ -92,8 +92,8 @@ class TextDNAExtractor:
     def _get_or_create_projection_matrix(self, input_dim: int, output_dim: int) -> np.ndarray:
         """Return the original float32 Gaussian matrix with unit-length columns.
 
-        A local RandomState reproduces ``np.random.seed(seed); randn(...)`` in
-        the private implementation without modifying application-global RNG state.
+        A local RandomState reproduces ``np.random.seed(seed); randn(...)``
+        without modifying application-global RNG state.
         """
         input_dim = self._positive_dimension(input_dim, "input_dim")
         output_dim = self._positive_dimension(output_dim, "output_dim")
@@ -135,7 +135,7 @@ class TextDNAExtractor:
         """Reduce raw encoder embeddings; row order defines the probe slots.
 
         All-zero rows represent missing answers. Concat keeps their positions;
-        the other aggregations omit those rows, as in the private implementation.
+        the other aggregations omit those rows.
         An all-zero matrix maps to a zero vector for every aggregation.
         """
         raw = self._validate_embeddings(embeddings)

@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.2 — 2026-11-04
+
+- Exclude experiment scripts, reports, and generated outputs from distributions.
+- Restrict release builds to commits on `main`.
+
 ## 1.0.1 — 2026-09-29
 
 Complete the public-interface migration to text-response DNA extraction:
@@ -32,11 +37,6 @@ post-concatenation truncation.
   recorded generation settings; identify legacy generation provenance as unknown.
 - Reject per-model PCA/SVD fitting in the public text pipeline. The legacy
   hidden-state extractor remains available through explicit imports.
-- Include the offline normalization ablation, input hashes, per-run results, and
-  reproduction audit. All 313 historical DNA vectors were reconstructed within
-  2.1e-6 maximum absolute error, and the published Qwen relation-prediction row was
-  reproduced from the original caches. The normalization comparison did not show
-  a reliable advantage for either setting; the report documents evaluation limits.
 
 ### Migration
 
